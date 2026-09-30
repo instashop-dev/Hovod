@@ -11,6 +11,8 @@ Hovod ships as a single Docker image, `synapsr/hovod` (`ghcr.io/synapsr/hovod`),
 
 You always need **S3-compatible storage** (AWS S3, Cloudflare R2, Backblaze B2, MinIO, ...): videos and HLS output live there and are streamed directly from it.
 
+On AWS, leave `S3_ENDPOINT`, `S3_ACCESS_KEY_ID` and `S3_SECRET_ACCESS_KEY` unset — the AWS SDK resolves the regional endpoint and its default credential chain (ECS task role, IRSA, instance profile). Set all three only for MinIO or another S3-compatible provider. See [DOCKER.md → S3 on AWS vs MinIO](../DOCKER.md#s3-on-aws-vs-minio).
+
 ---
 
 ## All-in-one

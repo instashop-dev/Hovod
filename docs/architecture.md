@@ -248,6 +248,15 @@ hovod-vod/
 - **`sources/`** — Private. Only accessible via pre-signed URLs.
 - **`playback/`** — Public read. Anonymous download is enabled for HLS delivery.
 
+  HLS manifests, segments, posters and the logo are served to the browser as
+  plain URLs built from `S3_PUBLIC_BASE_URL` — they are **not** presigned, so
+  this prefix has to be publicly readable through a bucket policy or a CDN in
+  front of it. On buckets with Object Ownership *bucket owner enforced* (the
+  default since April 2023) the per-object `ACL: public-read` is rejected, so
+  set `S3_PUBLIC_ACL=false` and grant public read at the bucket level instead.
+  Uploads and downloads are unaffected — those already use presigned URLs and
+  work against a fully private bucket.
+
 ## ID Conventions
 
 | Entity | Generator | Length |

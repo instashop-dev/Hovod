@@ -1,22 +1,20 @@
 import { PutBucketCorsCommand, S3Client } from '@aws-sdk/client-s3';
 import { env } from './env.js';
+import { buildS3Config } from './s3-config.js';
 
-const s3Config = {
-  region: env.S3_REGION,
-  forcePathStyle: env.S3_FORCE_PATH_STYLE,
-  credentials: {
-    accessKeyId: env.S3_ACCESS_KEY_ID,
-    secretAccessKey: env.S3_SECRET_ACCESS_KEY
-  }
-};
+// Credentials and endpoint are resolved once: explicit + custom for MinIO,
+// omitted for AWS/ECS so the SDK uses the default credential chain and the
+// regional endpoint. See s3-config.ts.
+const s3Config = buildS3Config(env);
 
 // Internal client for server-side operations (uses Docker-internal endpoint)
-export const s3Client = new S3Client({ ...s3Config, endpoint: env.S3_ENDPOINT });
+export const s3Client = new S3Client(s3Config);
 
 // Public client for generating presigned URLs the browser can reach
+const publicEndpoint = env.S3_PUBLIC_ENDPOINT ?? env.S3_ENDPOINT;
 export const s3PublicClient = new S3Client({
   ...s3Config,
-  endpoint: env.S3_PUBLIC_ENDPOINT || env.S3_ENDPOINT
+  ...(publicEndpoint !== undefined ? { endpoint: publicEndpoint } : {}),
 });
 
 /**

@@ -39,14 +39,14 @@ cp .env.example .env
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `S3_ENDPOINT` | — | S3 API endpoint (e.g., `http://minio:9000`) |
-| `S3_REGION` | `us-east-1` | S3 region |
-| `S3_BUCKET` | `hovod-vod` | Bucket name |
-| `S3_ACCESS_KEY_ID` | — | S3 access key |
-| `S3_SECRET_ACCESS_KEY` | — | S3 secret key |
-| `S3_FORCE_PATH_STYLE` | `true` | Use path-style URLs. Set to `true` for MinIO, `false` for AWS S3 |
+| `S3_ENDPOINT` | — | S3 API endpoint (e.g., `http://minio:9000`). **Leave unset on AWS** so the SDK resolves the regional endpoint |
+| `S3_REGION` | `us-east-1` | S3 region (required) |
+| `S3_BUCKET` | `hovod-vod` | Bucket name (required) |
+| `S3_ACCESS_KEY_ID` | — | Static access key. **Set with `S3_SECRET_ACCESS_KEY`, or leave both unset on AWS/ECS** to use the AWS SDK default credential chain (task role, IRSA, instance profile, `~/.aws`) |
+| `S3_SECRET_ACCESS_KEY` | — | Static secret key. Setting only one of the pair is rejected at startup |
+| `S3_FORCE_PATH_STYLE` | `true` with `S3_ENDPOINT`, `false` without | Use path-style URLs. Derived from the endpoint; set explicitly to override |
 | `S3_PUBLIC_ENDPOINT` | — | Public-facing S3 endpoint (for signed upload URLs) |
-| `S3_PUBLIC_BASE_URL` | — | Public base URL for playback manifests (e.g., `http://localhost:9000/hovod-vod`) |
+| `S3_PUBLIC_BASE_URL` | — | Public base URL for playback manifests (e.g., `http://localhost:9000/hovod-vod`). Required: HLS manifests, segments, posters and the logo are fetched straight from the browser, so `playback/` must be publicly readable |
 | `S3_PUBLIC_ACL` | `true` | Worker sets `ACL: public-read` on every playback object. Set to `false` for Cloudflare R2 or S3 buckets with ACLs disabled (Object Ownership = bucket owner enforced) — then grant public read on the `playback/` prefix at the bucket level (bucket policy, R2 public bucket / custom domain) |
 
 ### Worker
@@ -140,21 +140,34 @@ VITE_API_BASE_URL=http://localhost:3000
 
 ### AWS S3 + RDS
 
+On ECS / EKS / EC2 leave the credentials unset — the AWS SDK resolves both the
+regional endpoint and its default credential chain (task role, IRSA, instance
+profile):
+
 ```env
 DATABASE_URL=mysql://admin:password@mydb.cluster-xxx.us-east-1.rds.amazonaws.com:3306/hovod
 REDIS_URL=redis://my-redis.xxx.cache.amazonaws.com:6379
 
-S3_ENDPOINT=https://s3.us-east-1.amazonaws.com
+# S3_ENDPOINT unset              → AWS regional endpoint
+# S3_ACCESS_KEY_ID unset          → ECS task role / IRSA / instance profile
+# S3_SECRET_ACCESS_KEY unset
 S3_REGION=us-east-1
 S3_BUCKET=my-hovod-bucket
-S3_ACCESS_KEY_ID=AKIA...
-S3_SECRET_ACCESS_KEY=...
-S3_FORCE_PATH_STYLE=false
 S3_PUBLIC_BASE_URL=https://my-hovod-bucket.s3.us-east-1.amazonaws.com
+# Buckets created since April 2023 reject ACLs — grant public read on
+# playback/ through a bucket policy or CloudFront instead.
+S3_PUBLIC_ACL=false
 
 APP_URL=https://dashboard.example.com
 CORS_ORIGIN=https://dashboard.example.com,https://example.com
 VITE_API_BASE_URL=https://api.example.com
+```
+
+Static keys work too if you prefer them — set both, or neither:
+
+```env
+S3_ACCESS_KEY_ID=AKIAEXAMPLEEXAMPLE
+S3_SECRET_ACCESS_KEY=wJalrXUtnFEMI-EXAMPLEKEYEXAMPLEKEY
 ```
 
 ### Cloudflare R2
