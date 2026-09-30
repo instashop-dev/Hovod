@@ -75,7 +75,7 @@ The API also serves the built dashboard, so a single container answers both. Pla
   - `src/db.ts` — pool + `runMigrations()` call + `bootstrapDefaultOrg()`
   - `src/env.ts` — Zod env, `superRefine` validating the cloud group together; exports `isCloud`, `appUrl`, `emailEnabled`, `apiKeySecret`, `corsOrigins`
   - `src/queue.ts` — BullMQ queues, `defaultJobOptions`, `transcodeJobId()`, the daily analytics-cleanup scheduler
-  - `src/cli.ts` — `hovod-cli reset-password <email>` (prints a one-time link)
+  - `src/cli.ts` — `hovod-cli reset-password <email>` (prints a one-time link) and `hovod-cli migrate` (explicit, idempotent deploy-step migrations)
   - `src/routes/` — `assets`, `playback`, `analytics`, `ai`, `comments`, `auth`, `orgs`, `invitations`, `billing`, `settings`, `health`
   - `src/services/` — `asset` (findAssetOrFail, URL builders, cursors), `analytics`, `billing`, `billing-reconcile`, `entitlements`, `usage`, `cloud` (JWT + password + API keys), `email` (Resend), `vtt`, `webhooks`
   - `src/middleware/auth.ts` — JWT / API-key resolution, `token_version` check, scope enforcement
@@ -121,6 +121,8 @@ MySQL 8.4 / MariaDB 11.4 with Drizzle ORM (mysql2). **Migrations are versioned S
 - an existing pre-migration install (assets table present, no `schema_migrations`) goes through a one-time `legacyRepair()` and the baseline is marked applied without executing
 
 Current files: `0001_baseline` (full v0.2.0 schema), `0002_playback_sessions`, `0003_api_hardening`, `0004_cloud`.
+
+Migrations can also be run explicitly as a deploy step with `docker exec hovod hovod-cli migrate` (or `node apps/api/dist/cli.js migrate` against a built tree); the runner is idempotent and advisory-locked.
 
 **Adding a migration**: create the next numbered file, add the matching Drizzle change in `src/schema.ts`, never edit an applied file. `packages/db/scripts/test-migrations.mjs` derives the expected table list from the CREATEs minus the DROPs across all files, so a new file is covered automatically.
 

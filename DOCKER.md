@@ -512,6 +512,7 @@ Restoring into a **fresh** container (disaster recovery): start the new containe
    docker run -d --name hovod ... -v hovod-data:/data ... synapsr/hovod:latest
    ```
 5. Migrations run **automatically** when the API starts; watch them with `docker logs -f hovod` and wait for `Hovod is ready`.
+   They can also be run explicitly as a deploy step — `docker exec hovod hovod-cli migrate` — against a freshly recreated container, before the API is serving. The command is idempotent and advisory-locked, so running it against an already-migrated database is a no-op.
 
 With Compose: `docker compose pull && docker compose up -d`.
 
@@ -648,4 +649,5 @@ for s in api worker mariadb redis; do docker exec hovod s6-svstat /run/service/$
 | Scale for high volume | [Mode 3: Split with `HOVOD_ROLE`](#mode-3-split-deployment-with-hovod_role) |
 | Develop locally | [Mode 4: Docker Compose](#mode-4-docker-compose-development-only) |
 | Upgrade | [Upgrading](#upgrading) |
+| Run migrations explicitly | `docker exec hovod hovod-cli migrate` (idempotent, locked) |
 | Back up / restore | [Backups](#backups) |

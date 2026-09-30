@@ -7,6 +7,7 @@ import {
   MIGRATIONS_DIR,
   runMigrations as runDbMigrations,
   type MigrationLogger,
+  type RunMigrationsResult,
 } from '@hovod/db';
 import { env } from './env.js';
 import { hashPassword } from './services/cloud.js';
@@ -27,9 +28,11 @@ export const { db, pool } = createDb(env.DATABASE_URL, {
  *
  * Delegates to the shared runner in `@hovod/db` (advisory lock, `schema_migrations`
  * bookkeeping, legacy-install repair). Any failure is rethrown so the boot aborts.
+ *
+ * @returns Result describing applied / already-applied files and legacy repair status.
  */
-export async function runMigrations(logger: MigrationLogger = console): Promise<void> {
-  await runDbMigrations(pool, { migrationsDir: MIGRATIONS_DIR, logger });
+export async function runMigrations(logger: MigrationLogger = console): Promise<RunMigrationsResult> {
+  return runDbMigrations(pool, { migrationsDir: MIGRATIONS_DIR, logger });
 }
 
 /**
