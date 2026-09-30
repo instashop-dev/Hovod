@@ -255,7 +255,8 @@ const start = async () => {
     ['API',       `http://0.0.0.0:${env.PORT}`],
     ['Dashboard', dashboardMode],
     ['App URL',   appUrl],
-    ['S3',        env.S3_ENDPOINT],
+    // Unset on AWS/ECS: the SDK resolves the regional endpoint itself.
+    ['S3',        env.S3_ENDPOINT ?? 'AWS regional endpoint'],
     ['Mode',      isCloud ? 'cloud (Stripe, plan limits)' : 'self-host (unlimited)'],
     ['Email',     emailEnabled ? 'Resend' : 'disabled'],
   ];

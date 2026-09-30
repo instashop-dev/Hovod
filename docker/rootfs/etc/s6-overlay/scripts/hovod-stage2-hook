@@ -38,12 +38,21 @@ esac
 missing=()
 require() { [ -n "${!1:-}" ] || missing+=("$1"); }
 
-require S3_ENDPOINT
 require S3_REGION
 require S3_BUCKET
-require S3_ACCESS_KEY_ID
-require S3_SECRET_ACCESS_KEY
 [ "$ROLE" != "worker" ] && require S3_PUBLIC_BASE_URL
+
+# S3_ENDPOINT and the static credentials are deliberately NOT required.
+# Omitted, the AWS SDK resolves the regional endpoint and its default
+# credential chain (ECS task role, IRSA, instance profile, ~/.aws). A half
+# credential pair is always a misconfiguration, so reject it here with a
+# readable message instead of a confusing 403 in the middle of an upload.
+if [ -n "${S3_ACCESS_KEY_ID:-}" ] && [ -z "${S3_SECRET_ACCESS_KEY:-}" ]; then
+  die "S3_ACCESS_KEY_ID is set without S3_SECRET_ACCESS_KEY — set both for MinIO/self-hosted S3, or set neither to use the AWS SDK default credential chain" 78
+fi
+if [ -n "${S3_SECRET_ACCESS_KEY:-}" ] && [ -z "${S3_ACCESS_KEY_ID:-}" ]; then
+  die "S3_SECRET_ACCESS_KEY is set without S3_ACCESS_KEY_ID — set both for MinIO/self-hosted S3, or set neither to use the AWS SDK default credential chain" 78
+fi
 
 if [ "$ROLE" != "allinone" ]; then
   # api/worker roles never start MariaDB or Redis — they must point at external ones.

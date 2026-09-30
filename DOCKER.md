@@ -339,12 +339,12 @@ docker compose up -d mysql redis minio minio-init
 
 | Variable | Description |
 |----------|-------------|
-| `S3_ENDPOINT` | S3-compatible endpoint URL |
 | `S3_REGION` | S3 region |
 | `S3_BUCKET` | S3 bucket name |
-| `S3_ACCESS_KEY_ID` | S3 access key |
-| `S3_SECRET_ACCESS_KEY` | S3 secret key |
 | `S3_PUBLIC_BASE_URL` | Public URL of the bucket (HLS playback, posters) — not needed by the `worker` role |
+
+`S3_ENDPOINT` and the static credentials are **not** required — see
+[S3 on AWS vs MinIO](#s3-on-aws-vs-minio) below.
 
 ### Required for external services / split roles
 
@@ -382,6 +382,63 @@ docker compose up -d mysql redis minio minio-init
 AI (`WHISPER_*`, `LLM_*`, `AI_ENABLED`) and cloud/billing (`HOVOD_CLOUD`, `STRIPE_*`) variables are documented in [`.env.example`](.env.example), [docs/configuration.md](docs/configuration.md) and [docs/cloud.md](docs/cloud.md). With `HOVOD_CLOUD=true` the whole Stripe + Resend group is validated at boot and the API refuses to start half-configured.
 
 > `node scripts/check-env-docs.mjs` cross-checks every variable in `apps/api/src/env.ts` and `apps/worker/src/env.ts` against this table, `docs/configuration.md`, the README and `.env.example`.
+
+### S3 on AWS vs MinIO
+
+`S3_ENDPOINT` and the static credentials are optional, and which pair you set
+decides how the AWS SDK authenticates. There is no Deployz-specific or
+ECS-specific code path — this is the SDK's own default provider chain.
+
+**AWS / ECS — no static credentials (recommended)**
+
+Leave `S3_ENDPOINT`, `S3_ACCESS_KEY_ID` and `S3_SECRET_ACCESS_KEY` unset. The
+SDK then resolves the regional S3 endpoint itself and takes credentials from
+its default chain: the ECS task role, IRSA, an EC2 instance profile, SSO, or
+`~/.aws/credentials`. Nothing is generated and the metadata endpoint is never
+called by Hovod itself.
+
+```bash
+docker run -d --name hovod -p 3000:3000 -v hovod-data:/data \
+  -e DATABASE_URL=... -e REDIS_URL=... \
+  -e S3_REGION=eu-central-1 \
+  -e S3_BUCKET=my-bucket \
+  -e S3_PUBLIC_BASE_URL=https://media.example.com \
+  -e S3_PUBLIC_ACL=false \
+  synapsr/hovod
+```
+
+**MinIO / self-hosted — explicit credentials**
+
+Set `S3_ENDPOINT` together with both key variables. They are all-or-nothing:
+setting only one is rejected at boot with a clear message, by the container
+hook and by the app's own schema.
+
+```bash
+docker run -d --name hovod -p 3000:3000 -v hovod-data:/data \
+  -e S3_ENDPOINT=http://minio:9000 \
+  -e S3_ACCESS_KEY_ID=minioadmin -e S3_SECRET_ACCESS_KEY=minioadmin \
+  ... synapsr/hovod
+```
+
+`S3_FORCE_PATH_STYLE` is derived: path-style when `S3_ENDPOINT` is set (what
+MinIO and R2 need), virtual-hosted style when it is not (plain AWS S3). Set it
+explicitly to override.
+
+**Remaining requirement: `playback/` must be readable by browsers**
+
+Credentials are not the whole story on AWS. HLS manifests, segments, posters
+and the logo are served to the browser as plain URLs built from
+`S3_PUBLIC_BASE_URL` — they are not presigned. So the `playback/` prefix has to
+be publicly readable, either through a bucket policy or through CloudFront in
+front of it. Buckets created since April 2023 have Object Ownership *bucket
+owner enforced* and reject the worker's `ACL: public-read`, so on those set
+`S3_PUBLIC_ACL=false` and grant public read at the bucket level instead.
+
+Making playback work from a fully private bucket is a media-delivery redesign
+(presigned or signed manifest plus per-segment signing, or a CDN signed-URL
+scheme) and is out of scope for this change. Uploads and downloads are
+unaffected — those already use presigned URLs and work against a private
+bucket today.
 
 ### Scaling (auto-detected, override via env)
 

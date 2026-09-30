@@ -4,6 +4,18 @@ import { z } from 'zod';
 const bool = (defaultValue: 'true' | 'false') =>
   z.string().default(defaultValue).transform((v) => v === 'true' || v === '1');
 
+/**
+ * Optional string variable where a blank value counts as *unset*.
+ *
+ * ECS task definitions, Compose and .env templates routinely inject an empty
+ * string for a variable the operator left out. `-e S3_ENDPOINT=` on AWS must
+ * mean "let the SDK resolve the endpoint", not "invalid value".
+ */
+const optionalVar = z.preprocess(
+  (v) => (typeof v === 'string' && v.trim() === '' ? undefined : v),
+  z.string().min(1).optional(),
+);
+
 /** Variables that must all be present when `HOVOD_CLOUD=true`. */
 const CLOUD_REQUIRED = [
   'STRIPE_SECRET_KEY',
@@ -14,17 +26,31 @@ const CLOUD_REQUIRED = [
   'EMAIL_FROM',
 ] as const;
 
-const envSchema = z.object({
+/** Exported so tests can exercise validation without booting the whole app. */
+export const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().default(3000),
   DATABASE_URL: z.string().min(1),
   REDIS_URL: z.string().default('redis://redis:6379'),
-  S3_ENDPOINT: z.string().min(1),
+  /**
+   * Custom S3-compatible endpoint (MinIO and friends). Omit it on AWS so the
+   * SDK resolves the regional S3 endpoint itself.
+   */
+  S3_ENDPOINT: optionalVar,
   S3_REGION: z.string().min(1),
   S3_BUCKET: z.string().min(1),
-  S3_ACCESS_KEY_ID: z.string().min(1),
-  S3_SECRET_ACCESS_KEY: z.string().min(1),
-  S3_FORCE_PATH_STYLE: z.string().default('true').transform((v) => v === 'true'),
+  /**
+   * Static credentials for MinIO / R2 / any self-hosted S3. Set BOTH to use
+   * them; omit BOTH on AWS/ECS to let the AWS SDK use its default credential
+   * chain (task role, IRSA, instance profile, ...). Setting only one is an error.
+   */
+  S3_ACCESS_KEY_ID: optionalVar,
+  S3_SECRET_ACCESS_KEY: optionalVar,
+  /**
+   * Unset means: path-style with a custom endpoint (MinIO), virtual-hosted
+   * style on plain AWS S3. Set it explicitly to override.
+   */
+  S3_FORCE_PATH_STYLE: optionalVar,
   S3_PUBLIC_BASE_URL: z.string().url(),
   /** Public base URL of the dashboard/API (embed links, emails, Stripe return URLs). */
   APP_URL: z.string().url().optional(),
@@ -85,6 +111,22 @@ const envSchema = z.object({
   LLM_PROVIDER: z.string().optional(),
   LLM_API_KEY: z.string().optional(),
 }).superRefine((values, ctx) => {
+  // Static S3 credentials are all-or-nothing: half a pair is always a
+  // misconfiguration, and silently falling back to the default credential
+  // chain would turn a typo into a confusing 403 at upload time.
+  const hasKey = Boolean(values.S3_ACCESS_KEY_ID);
+  const hasSecret = Boolean(values.S3_SECRET_ACCESS_KEY);
+  if (hasKey !== hasSecret) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: [hasKey ? 'S3_SECRET_ACCESS_KEY' : 'S3_ACCESS_KEY_ID'],
+      message:
+        'S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY must be set together — set both for ' +
+        'MinIO / self-hosted S3, or set neither to use the AWS SDK default credential chain ' +
+        '(ECS task role, IRSA, instance profile, ...).',
+    });
+  }
+
   // Cloud mode is all-or-nothing: refuse to boot half-configured rather than
   // discover a missing Stripe price on the first signup.
   if (values.HOVOD_CLOUD) {

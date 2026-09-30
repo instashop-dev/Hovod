@@ -263,11 +263,8 @@ Every setting is an environment variable, validated with Zod at startup — a mi
 
 | Variable | Description |
 |----------|-------------|
-| `S3_ENDPOINT` | S3-compatible endpoint URL |
 | `S3_REGION` | S3 region |
 | `S3_BUCKET` | Bucket name |
-| `S3_ACCESS_KEY_ID` | Access key |
-| `S3_SECRET_ACCESS_KEY` | Secret key |
 | `S3_PUBLIC_BASE_URL` | Public URL objects are served from (used to build HLS playback URLs) |
 | `JWT_SECRET` | Signs access tokens (≥ 32 chars). **Auto-generated and persisted** in the all-in-one image; required explicitly for `HOVOD_ROLE=api` |
 
@@ -282,7 +279,9 @@ Every setting is an environment variable, validated with Zod at startup — a mi
 | `PORT` | `3000` | API + dashboard port |
 | `APP_URL` | `http://localhost:3000` | Public base URL — embed/share links, emails, billing return URLs. `DASHBOARD_URL` is a deprecated alias |
 | `CORS_ORIGIN` | `*` | Comma-separated allow-list. `*` logs a warning in production |
-| `S3_FORCE_PATH_STYLE` | `true` | Path-style S3 URLs (`false` for AWS S3) |
+| `S3_ENDPOINT` | AWS regional endpoint | Custom S3-compatible endpoint (MinIO, R2, B2). **Leave unset on AWS** so the SDK resolves the regional endpoint |
+| `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` | AWS default credential chain | Static credentials for MinIO / R2 / B2. **Set both, or leave both unset on AWS/ECS** to use the SDK default chain (task role, IRSA, instance profile). Setting only one is rejected at startup |
+| `S3_FORCE_PATH_STYLE` | `true` with `S3_ENDPOINT`, `false` without | Path-style S3 URLs — derived from the endpoint; set explicitly to override |
 | `S3_PUBLIC_ENDPOINT` | = `S3_ENDPOINT` | Endpoint used to sign browser-facing upload URLs |
 | `S3_PUBLIC_ACL` | `true` | Set `false` for Cloudflare R2 or buckets with ACLs disabled |
 | `API_KEY_SECRET` | = `JWT_SECRET` | Separate pepper for API-key hashes so `JWT_SECRET` can rotate |
@@ -347,16 +346,26 @@ With `HOVOD_CLOUD=true` these variables plus `RESEND_API_KEY` and `EMAIL_FROM` a
 <details>
 <summary><b>S3 provider examples</b></summary>
 
-**AWS S3**
+**AWS S3** — on ECS / EKS / EC2, omit the credentials and let the SDK use its default chain (task role, IRSA, instance profile):
 ```env
-S3_ENDPOINT=https://s3.amazonaws.com
 S3_REGION=us-east-1
 S3_BUCKET=my-hovod-bucket
-S3_ACCESS_KEY_ID=AKIA...
-S3_SECRET_ACCESS_KEY=...
 S3_PUBLIC_BASE_URL=https://my-hovod-bucket.s3.amazonaws.com
-S3_FORCE_PATH_STYLE=false
+# S3_ENDPOINT unset            → AWS regional endpoint
+# S3_ACCESS_KEY_ID unset        → ECS task role / IRSA / instance profile
+# S3_SECRET_ACCESS_KEY unset
 ```
+
+Static keys work too, if you prefer them — set both or neither:
+```env
+S3_REGION=us-east-1
+S3_BUCKET=my-hovod-bucket
+S3_ACCESS_KEY_ID=AKIAEXAMPLEEXAMPLE
+S3_SECRET_ACCESS_KEY=wJalrXUtnFEMI-EXAMPLEKEYEXAMPLEKEY
+S3_PUBLIC_BASE_URL=https://my-hovod-bucket.s3.amazonaws.com
+```
+
+> Buckets created since April 2023 have Object Ownership *bucket owner enforced*, which rejects the `ACL: public-read` that the worker puts on `playback/` objects. Set `S3_PUBLIC_ACL=false` and grant public read on the `playback/` prefix through a bucket policy (or a CloudFront distribution) instead. `S3_PUBLIC_BASE_URL` must point at whatever serves those objects.
 
 **Cloudflare R2** (zero egress fees — recommended behind a CDN)
 ```env

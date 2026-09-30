@@ -3,16 +3,11 @@ import { readdir, stat, lstat } from 'node:fs/promises';
 import path from 'node:path';
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { env } from './env.js';
+import { buildS3Config } from './s3-config.js';
 
-export const s3 = new S3Client({
-  region: env.S3_REGION,
-  endpoint: env.S3_ENDPOINT,
-  forcePathStyle: env.S3_FORCE_PATH_STYLE,
-  credentials: {
-    accessKeyId: env.S3_ACCESS_KEY_ID,
-    secretAccessKey: env.S3_SECRET_ACCESS_KEY,
-  },
-});
+// Explicit credentials + custom endpoint for MinIO; on AWS/ECS both are
+// omitted so the SDK uses the default credential chain. See s3-config.ts.
+export const s3 = new S3Client(buildS3Config(env));
 
 const UPLOAD_BATCH_SIZE = 10;
 const MAX_RETRIES = 3;
