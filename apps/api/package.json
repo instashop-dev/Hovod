@@ -7,6 +7,7 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "hovod-cli": "node dist/cli.js",
+    "db:migrate": "node dist/cli.js migrate",
     "dev": "tsx watch src/index.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "npm run build && node --test scripts/test-pagination.mjs scripts/test-entitlements.mjs && tsx scripts/test-analytics.mts && tsx scripts/test-billing.mts && tsx scripts/test-ai-job-selection.mts && node scripts/test-cloud-integration.mjs && node scripts/test-cloud-worker.mjs",

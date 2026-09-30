@@ -68,7 +68,7 @@ docker stop -t 60 hovod && docker rm hovod
 docker run -d --name hovod ... -v hovod-data:/data ... synapsr/hovod   # same command as before
 ```
 
-Migrations run automatically at startup. Details and rollback: [DOCKER.md → Upgrading](../DOCKER.md#upgrading).
+Migrations run automatically at startup. You can also run them explicitly as a deploy step with `docker exec hovod hovod-cli migrate` (idempotent and advisory-locked). Details and rollback: [DOCKER.md → Upgrading](../DOCKER.md#upgrading).
 
 ---
 

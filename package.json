@@ -28,6 +28,7 @@
     "dev": "echo 'Use app-level dev commands — see CLAUDE.md'",
     "lint": "npm run -ws lint",
     "typecheck": "npm run -ws typecheck",
+    "db:migrate": "npm run db:migrate -w @hovod/api",
     "check:env-docs": "node scripts/check-env-docs.mjs",
     "check:endpoints": "node scripts/check-endpoint-docs.mjs"
   }
